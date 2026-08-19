@@ -2,6 +2,8 @@
 
 将百度搭子（DuMate）的积分余额与 AI 执行能力暴露为本地 API，同时提供 **OpenAI 兼容**和 **Claude（Anthropic）兼容**两种协议，可供其他 Agent（OpenAI SDK、Anthropic SDK、Claude Code 等）直接调用，用来回答问题和执行任务。
 
+百度搭子（DuMate）登录即送2000积分，新用户赠送25000积分，每日签到+完成任务可获数千积分，实现你的token自由！
+
 ## 功能
 
 - **积分查询**：查询 DuMate 账户的可用积分、总积分、已用积分（不消耗积分）
