@@ -24,11 +24,24 @@ if errorlevel 1 (
     exit /b 1
 )
 
-set "TOKEN_FILE=%~dp0token.txt"
-if not exist "%TOKEN_FILE%" (
-    python -c "import secrets; open(r'%TOKEN_FILE%','w').write(secrets.token_hex(16))"
+rem --- 检查 Python 版本（需 3.10+，代码使用了 3.10 语法） ---
+python -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>&1
+if errorlevel 1 (
+    echo [错误] Python 版本过低，本项目需要 Python 3.10+，当前版本:
+    python --version
+    echo 请从 https://www.python.org/downloads/ 升级后重试。
+    pause
+    exit /b 1
 )
-set /p API_TOKEN=<"%TOKEN_FILE%"
+
+rem --- 首次运行自动生成随机 token ---
+python "%~dp0tools\ensure_token.py"
+set /p API_TOKEN=<"%~dp0token.txt"
+if "%API_TOKEN%"=="" (
+    echo [错误] 无法读取 API Token（token.txt 为空或生成失败）。
+    pause
+    exit /b 1
+)
 
 rem --- DuMate 透传代理（按需启动，自动适配 DuMate 期望的代理端口） ---
 python "%~dp0tools\start_proxy.py"

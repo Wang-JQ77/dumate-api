@@ -1,7 +1,9 @@
 import json
+import os
+
 from openai import OpenAI
 
-token = open(r"C:\Users\Wangjq\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a84802e6239e8c35d40dc58\dumate-api\token.txt").read().strip()
+token = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "token.txt")).read().strip()
 client = OpenAI(base_url="http://127.0.0.1:8765/v1", api_key=token)
 
 print("=== models.list ===")

@@ -1,10 +1,15 @@
 import json
+import os
 import sys
+import tempfile
 import urllib.request
 import urllib.error
 
-BASE = "http://127.0.0.1:52972"
-KEY = sys.argv[1] if len(sys.argv) > 1 else ""
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from dumate_client import discover_inapp_key, discover_opencode_url
+
+BASE = discover_opencode_url()
+KEY = discover_inapp_key()
 
 def req(method, path, body=None, timeout=10):
     url = BASE + path
@@ -25,7 +30,7 @@ def req(method, path, body=None, timeout=10):
 # Test creating a session
 print("=== POST /session ===")
 status, body = req("POST", "/session", {
-    "directory": "C:\\Users\\Wangjq\\.qianfan\\workspace\\e268d0e57d52419fb005572030fae56d",
+    "directory": tempfile.mkdtemp(prefix="dumate_test_"),
     "title": "API 测试会话",
 })
 print("status:", status)

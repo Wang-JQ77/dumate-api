@@ -1,11 +1,25 @@
 import json
+import os
+import sys
+import tempfile
 import time
 import urllib.request
 import urllib.error
 
-KEY = "a4851ca1d5b880779f3b1317511c777639a67d07596fcc79ef3fdcbfd2e24e86"
-BASE = "http://127.0.0.1:52972"
-SID = "ses_gffe5fea0d3443ffeEHSgGFFPqyMGPe"  # api-probe 会话
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from dumate_client import discover_inapp_key, discover_opencode_url
+
+KEY = discover_inapp_key()
+BASE = discover_opencode_url()
+
+# 创建独立测试会话，避免污染已有会话
+_req = urllib.request.Request(BASE + "/session", method="POST")
+_req.add_header("X-Dumate-Inapp-Key", KEY)
+_req.add_header("Content-Type", "application/json")
+_data = json.dumps({"title": "message flow test", "directory": tempfile.mkdtemp(prefix="dumate_test_")}).encode()
+with urllib.request.urlopen(_req, _data, timeout=15) as resp:
+    SID = json.loads(resp.read().decode())["id"]
+print("session:", SID)
 
 def post_message(text):
     req = urllib.request.Request(BASE + f"/session/{SID}/message", method="POST")

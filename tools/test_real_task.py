@@ -1,12 +1,15 @@
 """真实任务执行测试：让 DuMate 生成一个 Python 文件并验证内容。"""
 import json
+import os
+import tempfile
 import time
+
 import requests
 
-token = open(r"C:\Users\Wangjq\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a84802e6239e8c35d40dc58\dumate-api\token.txt").read().strip()
+token = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "token.txt")).read().strip()
 base = "http://127.0.0.1:8765"
 h = {"Authorization": "Bearer " + token}
-workdir = r"C:\Users\Wangjq\.qianfan\workspace\e268d0e57d52419fb005572030fae56d"
+workdir = tempfile.mkdtemp(prefix="dumate_test_")
 
 print("=== 1. balance before ===")
 r = requests.get(base + "/api/points/balance", headers=h, timeout=20)
@@ -28,7 +31,6 @@ data = r.json()
 print("reply:", json.dumps(data.get("reply"), ensure_ascii=False))
 
 print("\n=== 4. verify file exists ===")
-import os
 fp = os.path.join(workdir, "hello_api.py")
 print("file exists:", os.path.exists(fp))
 if os.path.exists(fp):

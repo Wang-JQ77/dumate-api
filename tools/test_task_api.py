@@ -1,13 +1,17 @@
 import json
+import os
+import tempfile
 import time
+
 import requests
 
-token = open(r"C:\Users\Wangjq\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a84802e6239e8c35d40dc58\dumate-api\token.txt").read().strip()
+token = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "token.txt")).read().strip()
 base = "http://127.0.0.1:8765"
 h = {"Authorization": "Bearer " + token}
+workdir = tempfile.mkdtemp(prefix="dumate_test_")
 
 print("=== 1. create task ===")
-r = requests.post(base + "/api/tasks", headers=h, json={"title": "API 任务测试", "directory": r"C:\Users\Wangjq\.qianfan\workspace\e268d0e57d52419fb005572030fae56d"}, timeout=20)
+r = requests.post(base + "/api/tasks", headers=h, json={"title": "API 任务测试", "directory": workdir}, timeout=20)
 print(r.status_code, json.dumps(r.json(), ensure_ascii=False, indent=2))
 task_id = r.json()["task_id"]
 

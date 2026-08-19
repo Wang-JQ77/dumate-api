@@ -1,8 +1,10 @@
 """Responses API 历史 bug 复现：历史含 function_call_output 时，新消息不应再返回余额。"""
 import json
+import os
+
 import requests
 
-token = open(r"C:\Users\Wangjq\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a84802e6239e8c35d40dc58\dumate-api\token.txt").read().strip()
+token = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "token.txt")).read().strip()
 base = "http://127.0.0.1:8765"
 h = {"Authorization": "Bearer " + token}
 
