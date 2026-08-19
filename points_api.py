@@ -111,23 +111,8 @@ def get_balance(force: bool = False) -> dict:
     return payload
 
 
-app = FastAPI(title="DuMate Points API", version="1.0.0", docs_url=None, redoc_url=None)
+app = FastAPI(title="DuMate Points API", version="1.1.0", docs_url=None, redoc_url=None)
 API_TOKEN = os.environ.get("DUMATE_API_TOKEN", "")
-
-REQ_LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "requests.log")
-
-
-@app.middleware("http")
-async def log_requests(request, call_next):
-    if request.url.path.startswith("/v1/"):
-        try:
-            body = await request.body()
-            with open(REQ_LOG, "a", encoding="utf-8") as f:
-                f.write(f"[{time.strftime('%H:%M:%S')}] {request.method} {request.url.path}\n")
-                f.write(body.decode("utf-8", errors="replace")[:4000] + "\n---\n")
-        except Exception:
-            pass
-    return await call_next(request)
 
 
 def _auth(x_api_key: str = Header(default=""), authorization: str = Header(default="")):
@@ -171,6 +156,28 @@ MODEL_LEVELS = {
     "dumate-ultra": "ultra",
 }
 ALL_MODELS = ["dumate-points", "dumate-lite", "dumate-turbo", "dumate-ultra"]
+
+# Claude 客户端（如 Claude Code）默认模型名 -> DuMate 模式映射
+LEVEL_HINTS = (
+    ("haiku", "lite"), ("lite", "lite"),
+    ("sonnet", "turbo"), ("turbo", "turbo"),
+    ("opus", "ultra"), ("ultra", "ultra"),
+)
+
+
+def _resolve_level(model: str):
+    """把模型名解析为 lite/turbo/ultra。
+
+    dumate-lite/turbo/ultra 直接映射；claude-haiku/sonnet/opus 等客户端默认
+    模型名按档位映射；其他返回 None（DuMate 默认模式）。
+    """
+    m = (model or "").strip().lower()
+    if m in MODEL_LEVELS:
+        return MODEL_LEVELS[m]
+    for hint, level in LEVEL_HINTS:
+        if hint in m:
+            return level
+    return None
 
 POINTS_TOOL = {
     "type": "function",
@@ -481,7 +488,7 @@ def chat_completions(body: dict, _: None = Depends(_auth)):
     stream = bool(body.get("stream", False))
     has_tools = bool(body.get("tools"))
     declared = _declared_tools(body)
-    level = MODEL_LEVELS.get((body.get("model") or "").strip())
+    level = _resolve_level(body.get("model") or "")
     # 仅当最后一条是 tool 消息时才视为第二轮（避免历史工具结果导致后续请求误判）
     has_tool_result = bool(messages) and isinstance(messages[-1], dict) and messages[-1].get("role") == "tool"
 
@@ -620,7 +627,7 @@ def responses_api(body: dict, _: None = Depends(_auth)):
     stream = bool(body.get("stream", False))
     has_tools = bool(body.get("tools"))
     declared = _declared_tools(body)
-    level = MODEL_LEVELS.get((body.get("model") or "").strip())
+    level = _resolve_level(body.get("model") or "")
     user_text, has_tool_output = _parse_responses_input(inp)
 
     # text.format 对应 response_format
@@ -746,10 +753,11 @@ def send_task_message(task_id: str, body: dict, _: None = Depends(_auth)):
     if not message:
         raise HTTPException(status_code=400, detail="message is required")
     sync = bool(body.get("sync", True))
+    level = _resolve_level(body.get("model") or body.get("model_level") or "")
     client = DumateClient()
     if sync:
         try:
-            client.send_message(task_id, message, timeout=300)
+            client.send_message(task_id, message, model_level=level, timeout=300)
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"send message failed: {e}")
         try:
@@ -760,7 +768,7 @@ def send_task_message(task_id: str, body: dict, _: None = Depends(_auth)):
     # 异步：后台线程发送，立即返回
     def worker():
         try:
-            client.send_message(task_id, message, timeout=300)
+            client.send_message(task_id, message, model_level=level, timeout=300)
         except Exception:
             pass
     threading.Thread(target=worker, daemon=True).start()
@@ -775,6 +783,169 @@ def get_task_messages(task_id: str, _: None = Depends(_auth)):
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"read messages failed: {e}")
     return {"task_id": task_id, "messages": _simplify_messages(msgs)}
+
+
+# ---------- Anthropic Claude 兼容接口 ----------
+
+def _claude_text_of(msg) -> str:
+    content = msg.get("content")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for c in content:
+            if isinstance(c, dict) and c.get("type") == "text":
+                parts.append(c.get("text", ""))
+        return " ".join(parts)
+    return ""
+
+
+def _claude_last_tool_result(messages):
+    """最后一条 user 消息里含 tool_result 时返回它，视为工具第二轮。"""
+    if not messages or not isinstance(messages[-1], dict):
+        return None
+    m = messages[-1]
+    if m.get("role") != "user":
+        return None
+    content = m.get("content")
+    if not isinstance(content, list):
+        return None
+    for c in content:
+        if isinstance(c, dict) and c.get("type") == "tool_result":
+            return c
+    return None
+
+
+def _find_claude_tool_call(messages):
+    """提取最近一条 assistant 消息中的 tool_use（name, input JSON）。
+
+    Claude 格式中 tool_result 挂在 user 消息的 content 里，遇到 user 不能停，
+    需继续向上找最近的 assistant tool_use。
+    """
+    for m in reversed(messages):
+        if not isinstance(m, dict) or m.get("role") != "assistant":
+            continue
+        content = m.get("content")
+        if isinstance(content, list):
+            for c in content:
+                if isinstance(c, dict) and c.get("type") == "tool_use":
+                    return c.get("name"), json.dumps(c.get("input") or {}, ensure_ascii=False)
+    return None, "{}"
+
+
+def _declared_claude_tools(body) -> set:
+    names = set()
+    for t in body.get("tools") or []:
+        if isinstance(t, dict) and t.get("name"):
+            names.add(t["name"])
+    return names
+
+
+def _claude_message(blocks: list, model: str, stop_reason: str) -> dict:
+    return {
+        "id": "msg_" + uuid.uuid4().hex[:24],
+        "type": "message",
+        "role": "assistant",
+        "model": model,
+        "content": blocks,
+        "stop_reason": stop_reason,
+        "stop_sequence": None,
+        "usage": {"input_tokens": 0, "output_tokens": 0},
+    }
+
+
+def _claude_stream(blocks: list, model: str, stop_reason: str):
+    def gen():
+        def ev(event, data):
+            return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+        msg_base = {
+            "id": "msg_" + uuid.uuid4().hex[:24],
+            "type": "message",
+            "role": "assistant",
+            "model": model,
+            "content": [],
+            "stop_reason": None,
+            "stop_sequence": None,
+            "usage": {"input_tokens": 0, "output_tokens": 0},
+        }
+        yield ev("message_start", {"type": "message_start", "message": msg_base})
+        for i, b in enumerate(blocks):
+            if b["type"] == "text":
+                yield ev("content_block_start", {"type": "content_block_start", "index": i,
+                                                 "content_block": {"type": "text", "text": ""}})
+                yield ev("content_block_delta", {"type": "content_block_delta", "index": i,
+                                                 "delta": {"type": "text_delta", "text": b["text"]}})
+            else:
+                yield ev("content_block_start", {"type": "content_block_start", "index": i,
+                                                 "content_block": {"type": "tool_use", "id": b["id"],
+                                                                   "name": b["name"], "input": {}}})
+                yield ev("content_block_delta", {"type": "content_block_delta", "index": i,
+                                                 "delta": {"type": "input_json_delta",
+                                                           "partial_json": json.dumps(b.get("input") or {}, ensure_ascii=False)}})
+            yield ev("content_block_stop", {"type": "content_block_stop", "index": i})
+        yield ev("message_delta", {"type": "message_delta",
+                                   "delta": {"stop_reason": stop_reason, "stop_sequence": None},
+                                   "usage": {"output_tokens": 0}})
+        yield ev("message_stop", {"type": "message_stop"})
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@app.post("/v1/messages")
+def claude_messages(body: dict, _: None = Depends(_auth)):
+    messages = body.get("messages", []) or []
+    stream = bool(body.get("stream", False))
+    model = (body.get("model") or "dumate-turbo").strip()
+    level = _resolve_level(model)
+    has_tools = bool(body.get("tools"))
+    declared = _declared_claude_tools(body)
+
+    last_user = ""
+    for m in reversed(messages):
+        if isinstance(m, dict) and m.get("role") == "user":
+            last_user = _claude_text_of(m)
+            break
+
+    stop_reason = "end_turn"
+    blocks = []
+    try:
+        tool_result = _claude_last_tool_result(messages)
+        if tool_result is not None:
+            # 第二轮：执行工具并返回真实结果
+            tool_name, tool_args = _find_claude_tool_call(messages)
+            blocks = [{"type": "text", "text": _execute_tool(tool_name, tool_args, level)}]
+        elif has_tools:
+            tool_name = _route_tool(last_user, declared)
+            if tool_name:
+                blocks = [{"type": "tool_use", "id": "toolu_" + uuid.uuid4().hex[:24],
+                           "name": tool_name, "input": _suggest_args(tool_name, last_user)}]
+                stop_reason = "tool_use"
+            elif last_user:
+                blocks = [{"type": "text", "text": _chat_with_dumate(last_user, level)}]
+            else:
+                blocks = [{"type": "text", "text": _fallback_text(False)}]
+        elif _mentions_points(last_user):
+            blocks = [{"type": "text", "text": _balance_content(get_balance(), False, None)}]
+        elif last_user:
+            blocks = [{"type": "text", "text": _chat_with_dumate(last_user, level)}]
+        else:
+            blocks = [{"type": "text", "text": _fallback_text(False)}]
+    except Exception as e:
+        blocks = [{"type": "text", "text": f"执行失败：{e}"}]
+
+    if stream:
+        return _claude_stream(blocks, model, stop_reason)
+    return _claude_message(blocks, model, stop_reason)
+
+
+@app.post("/v1/messages/count_tokens")
+def claude_count_tokens(body: dict, _: None = Depends(_auth)):
+    total = 0
+    for m in body.get("messages") or []:
+        if isinstance(m, dict):
+            total += len(_claude_text_of(m)) // 4 + 1
+    return {"input_tokens": total}
 
 
 def main():
