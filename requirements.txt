@@ -1,4 +1,9 @@
+# 服务运行必需
 fastapi>=0.104.0
 uvicorn>=0.24.0
 requests>=2.31.0
 cryptography>=41.0.0
+
+# 仅 tools/ 下的测试脚本需要（不需要跑测试可不装）
+# openai>=1.0.0
+# anthropic>=0.30.0

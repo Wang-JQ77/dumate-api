@@ -1,7 +1,11 @@
 """DuMate opencode 客户端：封装会话 / 消息接口，自动发现本地鉴权 key。"""
 import ctypes
 import os
+import re
+import socket
 import subprocess
+import sys
+import time
 
 import requests
 
@@ -11,8 +15,12 @@ DEFAULT_BASE = "http://127.0.0.1:52795"
 MODEL_LEVEL_HEADER = "X-Dumate-AutoModel-Level"
 MODEL_LEVELS = {"lite": "L0", "turbo": "L1", "ultra": "L2"}
 
+DUMATE_PROCS = ("dumate-main-server.exe", "dumate-opencode.exe", "DuMate.exe")
+
 PROCESS_QUERY_INFORMATION = 0x0400
 PROCESS_VM_READ = 0x0010
+
+_PROXY_ENSURE = {"done": False, "last_check": 0.0}
 
 
 class PROCESS_BASIC_INFORMATION(ctypes.Structure):
@@ -147,11 +155,60 @@ def discover_opencode_url():
     return DEFAULT_BASE
 
 
+def _port_in_use(port):
+    s = socket.socket()
+    s.settimeout(1)
+    try:
+        return s.connect_ex(("127.0.0.1", port)) == 0
+    finally:
+        s.close()
+
+
+def ensure_dumate_proxy():
+    """确保 DuMate 期望的本地代理端口有服务监听，无则启动透传代理兜底。
+
+    DuMate 的模型调用走其进程环境中的 HTTP_PROXY，该地址可能是陈旧配置
+    （指向已不存在的代理端口）。本服务可能在 DuMate 启动前就运行，启动时
+    无法发现代理配置，因此在每次创建客户端时惰性检查（带节流）。
+    """
+    st = _PROXY_ENSURE
+    now = time.time()
+    if st["done"] or now - st["last_check"] < 30:
+        return
+    st["last_check"] = now
+    port = None
+    for proc in DUMATE_PROCS:
+        pid = _find_pid(proc)
+        if not pid:
+            continue
+        envs = _read_process_env(pid)
+        for var in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
+            m = re.search(r"(?:127\.0\.0\.1|localhost):(\d+)", envs.get(var, ""))
+            if m:
+                port = int(m.group(1))
+                break
+        if port:
+            break
+    if port is None:
+        return  # DuMate 未运行或未配置代理，稍后重试
+    if _port_in_use(port):
+        st["done"] = True  # 端口已有服务（真实代理或先前启动的透传代理）
+        return
+    proxy_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools", "transparent_proxy.py")
+    if os.path.exists(proxy_script):
+        subprocess.Popen(
+            [sys.executable, proxy_script, str(port)],
+            creationflags=0x08000000,  # CREATE_NO_WINDOW
+        )
+    st["done"] = True
+
+
 class DumateClient:
     def __init__(self, base=None, key=None):
         self.base = base or os.environ.get("DUMATE_OPENCODE_URL") or discover_opencode_url()
         self.key = key or discover_inapp_key()
         self.headers = {"X-Dumate-Inapp-Key": self.key, "Content-Type": "application/json"}
+        ensure_dumate_proxy()
 
     def create_session(self, title, directory):
         r = requests.post(f"{self.base}/session", headers=self.headers,

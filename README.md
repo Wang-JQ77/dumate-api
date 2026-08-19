@@ -43,7 +43,7 @@
 ## 前置条件
 
 1. **Windows 系统** + **DuMate 客户端**已登录并运行（百度搭子桌面版）
-2. **Python 3.10+**
+2. **Python 3.10+**：从 [python.org](https://www.python.org/downloads/) 安装，安装时**务必勾选 "Add Python to PATH"**（Microsoft Store 版也可以，但若报"找不到 python 命令"请改用官网安装包）
 3. 安装依赖：`pip install -r requirements.txt`
 
 > 项目通过读取 DuMate 客户端进程的环境变量自动发现本地服务地址与鉴权 key，通过 `%APPDATA%\qianfan-desktop-app` 下的加密 cookie 查询积分，无需任何手动配置。

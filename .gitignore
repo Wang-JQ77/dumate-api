@@ -18,7 +18,6 @@ venv/
 
 # 逆向分析 / 探索产物（不属于项目源码）
 opencode_copy.db
-decrypt_cookies.py
 extract_asar.py
 extract_routes.py
 list_tables.py
@@ -34,7 +33,4 @@ probe_opencode.py
 probe_session.py
 test_cloud_api.py
 test_prompt.py
-test_create_session.py
-test_file_op.py
-test_message_flow.py
 asar_out/

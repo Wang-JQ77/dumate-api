@@ -1,0 +1,4 @@
+# Windows 批处理脚本必须保持 CRLF 行尾
+*.bat text eol=crlf
+*.py text eol=lf
+*.md text eol=lf
