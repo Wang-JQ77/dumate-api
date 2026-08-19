@@ -1,0 +1,3 @@
+# 将此文件复制为 token.txt，替换为你的实际 API Token
+# 首次启动 start_points_api.bat 时会自动生成，无需手动创建
+# 格式：一行 32 位十六进制字符串

@@ -1,0 +1,28 @@
+# 机密信息（绝不入库）
+token.txt
+auth.json
+.cookie-key
+*.pem
+*.key
+
+# 运行时产物
+*.pid
+*.log
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 本机专用启动脚本（含本机路径，参考 README 自行生成）
+启动DuMateAPI.bat
+
+# 逆向分析探索产物（体积大且不属于本项目）
+tools/asar_out/
+tools/opencode_copy.db
+tools/probe_*.py
+tools/extract_*.py
+tools/list_tables*.py
+tools/schema.py
+tools/read_env.py
+tools/test_prompt.py
+tools/test_cloud_api.py
