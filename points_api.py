@@ -375,11 +375,28 @@ def _default_session_id() -> str:
         return sess["id"]
 
 
+def _invalidate_default_session():
+    """清空缓存的默认会话 ID（会话失效时调用，如 DuMate 桌面版重启后）。"""
+    with _default_session["lock"]:
+        _default_session["id"] = None
+
+
 def _chat_with_dumate(text: str, level: str = None) -> str:
-    """把消息转发给 DuMate 执行（消耗积分），只返回回复文本。level: lite/turbo/ultra。"""
+    """把消息转发给 DuMate 执行（消耗积分），只返回回复文本。level: lite/turbo/ultra。
+
+    若缓存的默认会话已失效（如 DuMate 重启导致 404），自动重建会话并重试一次。
+    """
     client = DumateClient()
     sid = _default_session_id()
-    client.send_message(sid, text, model_level=level, timeout=300)
+    try:
+        client.send_message(sid, text, model_level=level, timeout=300)
+    except requests.HTTPError as e:
+        if e.response is not None and e.response.status_code == 404:
+            _invalidate_default_session()
+            sid = _default_session_id()
+            client.send_message(sid, text, model_level=level, timeout=300)
+        else:
+            raise
     msgs = client.get_messages(sid)
     reply = _extract_reply(msgs)
     if isinstance(reply, dict):

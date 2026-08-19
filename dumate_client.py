@@ -152,7 +152,15 @@ def discover_opencode_url():
             port = envs.get("OPENCODE_SERVER_PORT", "")
             if port:
                 return f"http://127.0.0.1:{port}"
-    return DEFAULT_BASE
+    fallback_port = int(DEFAULT_BASE.rsplit(":", 1)[1])
+    if _port_in_use(fallback_port):
+        return DEFAULT_BASE
+    raise RuntimeError(
+        f"未检测到 DuMate 桌面版进程（dumate-main-server / dumate-opencode），"
+        f"且默认端口 {fallback_port} 上没有服务监听。"
+        f"请先启动 DuMate 桌面版并等待其完全就绪后重试；"
+        f"或通过环境变量 DUMATE_OPENCODE_URL 手动指定 opencode 服务地址。"
+    )
 
 
 def _port_in_use(port):
