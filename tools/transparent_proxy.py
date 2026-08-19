@@ -4,7 +4,6 @@ import select
 import sys
 import os
 
-LISTEN = ("127.0.0.1", 8888)
 PID_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "proxy.pid")
 
 def pipe(a, b):
@@ -83,13 +82,15 @@ def handle(client):
             pass
 
 def main():
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8888
+    listen = ("127.0.0.1", port)
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    srv.bind(LISTEN)
+    srv.bind(listen)
     srv.listen(128)
     with open(PID_FILE, "w") as f:
         f.write(str(os.getpid()))
-    print(f"transparent proxy listening on {LISTEN[0]}:{LISTEN[1]}", flush=True)
+    print(f"transparent proxy listening on {listen[0]}:{listen[1]}", flush=True)
     try:
         while True:
             c, _ = srv.accept()

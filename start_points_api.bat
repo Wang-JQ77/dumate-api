@@ -10,14 +10,8 @@ if not exist "%TOKEN_FILE%" (
 )
 set /p API_TOKEN=<"%TOKEN_FILE%"
 
-rem --- 8888 transparent proxy (needed for DuMate model calls) ---
-python -c "import socket; s=socket.socket(); s.settimeout(1); r=s.connect_ex(('127.0.0.1',8888)); s.close(); raise SystemExit(0 if r==0 else 1)" >nul 2>&1
-if %errorlevel%==0 (
-    echo [Proxy] 8888 already running.
-) else (
-    start "DuMateProxy8888" /min python "%~dp0tools\transparent_proxy.py"
-    echo [Proxy] 8888 transparent proxy started.
-)
+rem --- DuMate 透传代理（按需启动，自动适配 DuMate 期望的代理端口） ---
+python "%~dp0tools\start_proxy.py"
 
 rem --- Points API service ---
 python -c "import socket; s=socket.socket(); s.settimeout(1); r=s.connect_ex(('127.0.0.1',8765)); s.close(); raise SystemExit(0 if r==0 else 1)" >nul 2>&1
