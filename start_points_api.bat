@@ -1,77 +1,113 @@
 @echo off
-rem Start DuMate API service (+ transparent proxy when needed) in background.
-rem On first run, generates a random token saved to token.txt.
+rem Start DuMate API service â€“ ä¸‰æ­¥éª¤è‡ªåŠ¨å¯åŠ¨æµç¨‹
+rem   [1/3] æ£€æŸ¥ DuMate æ¡Œé¢ç‰ˆ â†’ è‡ªåŠ¨å¯åŠ¨ â†’ ç­‰å¾… opencode å°±ç»ª
+rem   [2/3] å¯åŠ¨ 8888 é€ä¼ ä»£ç†
+rem   [3/3] å¯åŠ¨ DuMate API æœåŠ¡ (8765)
 setlocal
 cd /d "%~dp0"
 
-rem --- ¼ì²é Python£¨Ö±½ÓÑéÖ¤¿ÉÖ´ĞĞ£¬¼æÈİ PATH ÎŞ where.exe µÄ»·¾³£© ---
+rem --- æ£€æŸ¥ Python ---
 python --version >nul 2>&1
 if errorlevel 1 (
-    echo [´íÎó] ÎŞ·¨ÔËĞĞ python ÃüÁî¡£
-    echo Çë°²×° Python 3.10+£¬°²×°Ê±Îñ±Ø¹´Ñ¡ "Add Python to PATH":
+    echo [é”™è¯¯] æ— æ³•è¿è¡Œ python å‘½ä»¤ã€‚
+    echo è¯·å®‰è£… Python 3.10+ï¼Œå®‰è£…æ—¶åŠ¡å¿…å‹¾é€‰ "Add Python to PATH":
     echo   https://www.python.org/downloads/
-    echo Èôµ¯³ö Microsoft Store Ò³Ãæ£¬ËµÃ÷×°µÄÊÇÉÌµêÕ¼Î»·û£¬Çë¸ÄÓÃ¹ÙÍø°²×°°ü¡£
+    echo è‹¥å¼¹å‡º Microsoft Store é¡µé¢ï¼Œè¯´æ˜è£…çš„æ˜¯å•†åº—å ä½ç¬¦ï¼Œè¯·æ”¹ç”¨å®˜ç½‘å®‰è£…åŒ…ã€‚
     pause
     exit /b 1
 )
 
-rem --- ¼ì²éÒÀÀµ ---
+rem --- æ£€æŸ¥ä¾èµ– ---
 python -c "import fastapi, uvicorn, requests, cryptography" >nul 2>&1
 if errorlevel 1 (
-    echo [´íÎó] È±ÉÙ Python ÒÀÀµ£¬ÇëÔÚ±¾ÏîÄ¿Ä¿Â¼Ö´ĞĞ:
+    echo [é”™è¯¯] ç¼ºå°‘ Python ä¾èµ–ï¼Œè¯·åœ¨æœ¬é¡¹ç›®ç›®å½•æ‰§è¡Œ:
     echo   pip install -r requirements.txt
     pause
     exit /b 1
 )
 
-rem --- ¼ì²é Python °æ±¾£¨Ğè 3.10+£¬´úÂëÊ¹ÓÃÁË 3.10 Óï·¨£© ---
+rem --- æ£€æŸ¥ Python ç‰ˆæœ¬ï¼ˆéœ€ 3.10+ï¼‰ ---
 python -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>&1
 if errorlevel 1 (
-    echo [´íÎó] Python °æ±¾¹ıµÍ£¬±¾ÏîÄ¿ĞèÒª Python 3.10+£¬µ±Ç°°æ±¾:
+    echo [é”™è¯¯] Python ç‰ˆæœ¬è¿‡ä½ï¼Œæœ¬é¡¹ç›®éœ€è¦ Python 3.10+ï¼Œå½“å‰ç‰ˆæœ¬:
     python --version
-    echo Çë´Ó https://www.python.org/downloads/ Éı¼¶ºóÖØÊÔ¡£
+    echo è¯·ä» https://www.python.org/downloads/ å‡çº§åé‡è¯•ã€‚
     pause
     exit /b 1
 )
 
-rem --- Ê×´ÎÔËĞĞ×Ô¶¯Éú³ÉËæ»ú token ---
+rem --- é¦–æ¬¡è¿è¡Œè‡ªåŠ¨ç”Ÿæˆéšæœº token ---
 python "%~dp0tools\ensure_token.py"
 set /p API_TOKEN=<"%~dp0token.txt"
 if "%API_TOKEN%"=="" (
-    echo [´íÎó] ÎŞ·¨¶ÁÈ¡ API Token£¨token.txt Îª¿Õ»òÉú³ÉÊ§°Ü£©¡£
+    echo [é”™è¯¯] æ— æ³•è¯»å– API Tokenï¼ˆtoken.txt ä¸ºç©ºæˆ–ç”Ÿæˆå¤±è´¥ï¼‰ã€‚
     pause
     exit /b 1
 )
 
-rem --- DuMate Í¸´«´úÀí£¨°´ĞèÆô¶¯£¬×Ô¶¯ÊÊÅä DuMate ÆÚÍûµÄ´úÀí¶Ë¿Ú£© ---
+echo.
+echo === [1/3] æ£€æŸ¥ DuMate æ¡Œé¢ç‰ˆ ===
+
+rem æ£€æŸ¥ DuMate è¿›ç¨‹æ˜¯å¦å·²åœ¨è¿è¡Œï¼ˆdumate-main-server æˆ– dumate-opencodeï¼‰
+python -c "import subprocess; out=subprocess.run(['tasklist','/FI','IMAGENAME eq dumate-main-server.exe','/FO','CSV','/NH'],capture_output=True,text=True).stdout; exit(0 if 'dumate-main-server' in out else 1)" >nul 2>&1
+if errorlevel 1 (
+    echo [1/3] DuMate æœªè¿è¡Œï¼Œæ­£åœ¨å¯åŠ¨ D:\DuMate\DuMate.exe ...
+    if exist "D:\DuMate\DuMate.exe" (
+        start "" "D:\DuMate\DuMate.exe"
+    ) else (
+        echo [è­¦å‘Š] æœªæ‰¾åˆ° D:\DuMate\DuMate.exeï¼Œè¯·æ‰‹åŠ¨å¯åŠ¨ DuMate æ¡Œé¢ç‰ˆã€‚
+    )
+) else (
+    echo [1/3] DuMate æ¡Œé¢ç‰ˆå·²åœ¨è¿è¡Œ
+)
+
+rem ç­‰å¾… opencode æœåŠ¡å°±ç»ªï¼ˆæœ€å¤š 90 ç§’ï¼‰
+python "%~dp0tools\wait_opencode.py" 90
+if %errorlevel%==0 (
+    for /f %%i in ('python "%~dp0tools\wait_opencode.py" 0') do set OPENCODE_URL=%%i
+    rem å–æœ€åä¸€æ¬¡æˆåŠŸè¾“å‡º
+    python -c "import subprocess, sys; r=subprocess.run([sys.executable,r'%~dp0tools\wait_opencode.py','0'],capture_output=True,text=True); print(r.stdout.strip())" > "%TEMP%\opencode_url.txt" 2>&1
+    set /p OPENCODE_URL=<"%TEMP%\opencode_url.txt"
+    if defined OPENCODE_URL (
+        echo [OK] opencode å·²å°±ç»ª: %OPENCODE_URL%
+    ) else (
+        echo [OK] opencode å·²å°±ç»ª
+    )
+) else (
+    echo [1/3] DuMate å°šæœªå°±ç»ªï¼ˆé¦–æ¬¡ç™»å½•å¯èƒ½éœ€è¦æ‰‹åŠ¨æ“ä½œï¼‰ï¼ŒAPI ä¼šå…ˆå¯åŠ¨ã€‚
+    echo        DuMate å°±ç»ªåï¼Œåç»­è°ƒç”¨ä¼šè‡ªåŠ¨æ¢å¤ï¼Œæ— éœ€é‡å¯æœ¬æœåŠ¡ã€‚
+)
+
+echo.
+echo === [2/3] å¯åŠ¨ 8888 é€ä¼ ä»£ç† ===
 python "%~dp0tools\start_proxy.py"
 
-rem --- API ·şÎñ ---
+echo.
+echo === [3/3] å¯åŠ¨ DuMate API æœåŠ¡ ===
 python -c "import socket; s=socket.socket(); s.settimeout(1); r=s.connect_ex(('127.0.0.1',8765)); s.close(); raise SystemExit(0 if r==0 else 1)" >nul 2>&1
 if %errorlevel%==0 (
-    echo [DuMate API] ·şÎñÒÑÔÚÔËĞĞ: http://127.0.0.1:8765
+    echo [3/3] DuMate API å·²åœ¨è¿è¡Œ: http://127.0.0.1:8765
     goto :showtoken
 )
 
 start "DuMateAPI" /min python "%~dp0points_api.py" --port 8765 --token "%API_TOKEN%"
 
-rem --- µÈ´ı·şÎñ¾ÍĞ÷£¬Æô¶¯Ê§°ÜÊ±¸ø³öÅÅ²éÌáÊ¾ ---
 timeout /t 2 /nobreak >nul
 python -c "import socket; s=socket.socket(); s.settimeout(1); r=s.connect_ex(('127.0.0.1',8765)); s.close(); raise SystemExit(0 if r==0 else 1)" >nul 2>&1
 if errorlevel 1 (
-    echo [¾¯¸æ] ·şÎñ¿ÉÄÜÆô¶¯Ê§°Ü¡£ÇëÊÖ¶¯ÔËĞĞÒÔÏÂÃüÁî²é¿´¾ßÌå±¨´í:
+    echo [3/3] æœåŠ¡å¯åŠ¨å¤±è´¥ã€‚è¯·æ‰‹åŠ¨è¿è¡Œä»¥ä¸‹å‘½ä»¤æŸ¥çœ‹å…·ä½“æŠ¥é”™:
     echo   python points_api.py --port 8765 --token "%API_TOKEN%"
-    echo ³£¼ûÔ­Òò: ¶Ë¿Ú 8765 ±»Õ¼ÓÃ¡¢ÒÀÀµÎ´°²×°¡¢DuMate Î´ÔËĞĞ¡£
+    echo å¸¸è§åŸå› : ç«¯å£ 8765 è¢«å ç”¨ã€ä¾èµ–æœªå®‰è£…ã€DuMate æœªè¿è¡Œã€‚
 ) else (
-    echo [DuMate API] ·şÎñÒÑÆô¶¯: http://127.0.0.1:8765
+    echo [3/3] DuMate API å·²å¯åŠ¨: http://127.0.0.1:8765
 )
 
 :showtoken
 echo.
 echo API Token: %API_TOKEN%
-echo µ÷ÓÃÊ¾Àı:
+echo è°ƒç”¨ç¤ºä¾‹:
 echo   curl -H "X-API-Key: %API_TOKEN%" http://127.0.0.1:8765/api/points/balance
 echo.
-echo °´ÈÎÒâ¼ü¹Ø±Õ±¾´°¿Ú£¨·şÎñÔÚºóÌ¨¼ÌĞøÔËĞĞ£¬Í£Ö¹ÇëÔËĞĞ stop_points_api.bat£©...
+echo æŒ‰ä»»æ„é”®å…³é—­æœ¬çª—å£ï¼ˆæœåŠ¡åœ¨åå°ç»§ç»­è¿è¡Œï¼Œåœæ­¢è¯·è¿è¡Œ stop_points_api.batï¼‰...
 pause >nul
 endlocal
