@@ -16,13 +16,25 @@ venv/
 # 本机专用启动脚本（含本机路径，参考 README 自行生成）
 启动DuMateAPI.bat
 
-# 逆向分析探索产物（体积大且不属于本项目）
-tools/asar_out/
-tools/opencode_copy.db
-tools/probe_*.py
-tools/extract_*.py
-tools/list_tables*.py
-tools/schema.py
-tools/read_env.py
-tools/test_prompt.py
-tools/test_cloud_api.py
+# 逆向分析 / 探索产物（不属于项目源码）
+opencode_copy.db
+decrypt_cookies.py
+extract_asar.py
+extract_routes.py
+list_tables.py
+list_tables_ro.py
+read_env.py
+schema.py
+probe_api.py
+probe_exec.py
+probe_main2.py
+probe_message.py
+probe_multi.py
+probe_opencode.py
+probe_session.py
+test_cloud_api.py
+test_prompt.py
+test_create_session.py
+test_file_op.py
+test_message_flow.py
+asar_out/
