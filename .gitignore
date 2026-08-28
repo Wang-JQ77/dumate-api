@@ -16,6 +16,9 @@ venv/
 # 本机专用启动脚本（含本机路径，参考 README 自行生成）
 启动DuMateAPI.bat
 
+# 测试脚本（不属于项目核心代码）
+tools/test_*.py
+
 # 逆向分析 / 探索产物（不属于项目源码）
 opencode_copy.db
 extract_asar.py
